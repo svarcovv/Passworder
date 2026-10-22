@@ -13,7 +13,24 @@
 - Мастер-пароль, автоблокировка, зашифрованные резервные копии.
 - Трей и глобальная горячая клавиша для Windows.
 
-## Запуск
+## Скачать приложение
+
+[Скачать Passworder для Windows x64](https://github.com/svarcovv/Passworder/releases/latest/download/Passworder-windows-x64.zip)
+
+1. Скачай ZIP по ссылке или открой [Releases](https://github.com/svarcovv/Passworder/releases/latest).
+2. Распакуй всю папку `Passworder` в любое удобное место.
+3. Запусти `Passworder.exe`. Java и Docker устанавливать не нужно.
+
+Сборка предназначена для Windows 10/11 x64. Для macOS, Linux и других архитектур
+нужны отдельные пакеты. ZIP из кнопки «Code» содержит исходники, а не готовую программу.
+Номер версии виден в заголовке окна.
+
+При обновлении выбери «Выход» в трее старой версии, затем распакуй новую сборку
+в отдельную папку и запусти ее. Крестик только скрывает окно. Все версии используют
+один файл данных в профиле пользователя, переносить или удалять его не нужно.
+Если другой экземпляр уже работает, повторный запуск показывает его окно.
+
+## Запуск из исходников
 
 В IntelliJ открой `pom.xml` как Maven-проект, выбери JDK 21 и запусти
 `svarcovv.dev.passworder.Passworder`.
@@ -29,14 +46,15 @@ java -jar target\Passworder.jar
 Он не сохраняется. Сбросить его или восстановить без него данные нельзя.
 
 Сборка Windows-программы со своей Java внутри:
+Для публичного пакета используй Eclipse Temurin JDK 21 и укажи его в `JAVA_HOME`.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1 -Destination dist\0.2.0
+powershell -ExecutionPolicy Bypass -File scripts\package-windows.ps1 -Destination dist\0.2.1
 ```
 
-Запускай `dist\0.2.0\Passworder\Passworder.exe`. Переносить нужно всю папку `Passworder`.
-Отдельно устанавливать Java для этой сборки не нужно.
-`run.cmd` запускает готовую сборку или JAR.
+Запускай `dist\0.2.1\Passworder\Passworder.exe`. Переносить нужно всю папку `Passworder`.
+Отдельно устанавливать Java для этой сборки не нужно. Внутри Eclipse Temurin с лицензионными файлами, см. [RUNTIME.md](RUNTIME.md).
+`run.cmd` запускает сборку версии из `pom.xml`. Если ее нет, собирает текущие исходники. Старые пакеты пропускаются.
 Для повторной сборки укажи новый каталог через `-Destination dist\build-2`.
 
 ## Управление

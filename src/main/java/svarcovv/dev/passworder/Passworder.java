@@ -16,9 +16,16 @@ public final class Passworder {
                 String local = System.getenv("LOCALAPPDATA");
                 Path directory = Path.of(local == null ? System.getProperty("user.home") : local, local == null ? ".passworder" : "Passworder");
                 LocalFiles.privateDirectory(directory);
-                SingleInstance instance = new SingleInstance(directory);
-                if (!instance.primary()) { instance.close(); System.exit(0); return; }
                 var settings = new AppSettings(directory); Theme.apply(settings.dark());
+                SingleInstance instance = new SingleInstance(directory, AppVersion.CURRENT);
+                if (!instance.primary()) {
+                    if (!AppVersion.CURRENT.equals(instance.runningVersion())) {
+                        JOptionPane.showMessageDialog(null,
+                                "Уже работает другая версия Passworder.\nВыберите «Выход» в меню значка в трее, затем запустите новую версию еще раз.",
+                                "Passworder " + AppVersion.CURRENT, JOptionPane.INFORMATION_MESSAGE);
+                    }
+                    instance.close(); System.exit(0); return;
+                }
                 var frame = new MainFrame(new VaultStore(directory.resolve("vault.pwr")), settings, instance);
                 Runtime.getRuntime().addShutdownHook(new Thread(() -> { try { instance.close(); } catch (Exception ignored) {} }, "passworder-cleanup"));
                 frame.setVisible(true);

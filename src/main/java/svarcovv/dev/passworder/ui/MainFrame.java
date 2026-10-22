@@ -1,6 +1,7 @@
 package svarcovv.dev.passworder.ui;
 
 import svarcovv.dev.passworder.AppSettings;
+import svarcovv.dev.passworder.AppVersion;
 import svarcovv.dev.passworder.model.VaultEntry;
 import svarcovv.dev.passworder.platform.*;
 import svarcovv.dev.passworder.security.*;
@@ -42,7 +43,7 @@ public final class MainFrame extends JFrame {
     };
 
     public MainFrame(VaultStore store, AppSettings settings, SingleInstance instance) {
-        super("Passworder"); this.store = store; this.settings = settings; this.instance = instance;
+        super("Passworder " + AppVersion.CURRENT); this.store = store; this.settings = settings; this.instance = instance;
         setIconImage(Glyph.appImage(64)); setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         Motion.setEnabled(settings.animations());
         setMinimumSize(new Dimension(960, 660)); setSize(1280, 820); setLocationRelativeTo(null);
