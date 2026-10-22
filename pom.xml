@@ -6,7 +6,7 @@
 
     <groupId>svarcovv.dev</groupId>
     <artifactId>Passworder</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <name>Passworder</name>
     <description>Локальный менеджер паролей</description>
 
@@ -17,6 +17,7 @@
 
     <dependencies>
         <dependency><groupId>com.formdev</groupId><artifactId>flatlaf</artifactId><version>3.7.2</version></dependency>
+        <dependency><groupId>com.formdev</groupId><artifactId>flatlaf-extras</artifactId><version>3.7.2</version></dependency>
         <dependency><groupId>net.java.dev.jna</groupId><artifactId>jna-platform</artifactId><version>5.19.1</version></dependency>
         <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>6.1.3</version><scope>test</scope></dependency>
     </dependencies>

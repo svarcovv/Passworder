@@ -29,10 +29,17 @@ final class EntryDialog extends JDialog {
         Theme.field(content, "Название", title); Theme.field(content, "Логин", login);
         Theme.field(content, "Пароль", password);
         JPanel passwordActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        JToggleButton show = new JToggleButton("Показать");
+        JButton show = Theme.button("Показать", () -> {});
+        show.setPreferredSize(new Dimension(132, 44)); show.setIcon(new Glyph("eye", 18, Theme.muted));
+        boolean[] revealed = {false};
         char echo = password.getEchoChar();
-        javax.swing.Timer conceal = new javax.swing.Timer(10_000, e -> { show.setSelected(false); password.setEchoChar(echo); }); conceal.setRepeats(false);
-        show.addActionListener(e -> { password.setEchoChar(show.isSelected() ? (char) 0 : echo); if (show.isSelected()) conceal.restart(); else conceal.stop(); });
+        Runnable hide = () -> { revealed[0] = false; show.setText("Показать"); show.setIcon(new Glyph("eye", 18, Theme.muted)); password.setEchoChar(echo); };
+        javax.swing.Timer conceal = new javax.swing.Timer(10_000, e -> hide.run()); conceal.setRepeats(false);
+        show.addActionListener(e -> {
+            revealed[0] = !revealed[0]; password.setEchoChar(revealed[0] ? (char) 0 : echo);
+            if (revealed[0]) { show.setText("Скрыть"); show.setIcon(new Glyph("eye-off", 18, Theme.muted)); conceal.restart(); }
+            else { hide.run(); conceal.stop(); }
+        });
         passwordActions.add(show); passwordActions.add(Box.createHorizontalStrut(10));
         passwordActions.add(Theme.button("Сгенерировать", () -> {
             char[] generated = PasswordGenerator.generate(24, true, true);

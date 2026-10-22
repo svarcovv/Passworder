@@ -37,7 +37,8 @@ try {
     }
     $destPath = [IO.Path]::GetFullPath((Join-Path $projectRoot $Destination))
     if (Test-Path -LiteralPath (Join-Path $destPath 'Passworder')) { throw 'Destination already contains Passworder. Use -Destination with a new directory.' }
-    & $jpackage --type app-image --name Passworder --app-version 0.1.0 --vendor svarcovv --icon src/main/resources/icons/passworder.ico --input $packageInput --main-jar Passworder.jar --main-class svarcovv.dev.passworder.Passworder --runtime-image $runtimePath --dest $destPath --java-options '-Dfile.encoding=UTF-8'
+    $appVersion = ([xml](Get-Content -LiteralPath pom.xml -Raw)).project.version
+    & $jpackage --type app-image --name Passworder --app-version $appVersion --vendor svarcovv --icon src/main/resources/icons/passworder.ico --input $packageInput --main-jar Passworder.jar --main-class svarcovv.dev.passworder.Passworder --runtime-image $runtimePath --dest $destPath --java-options '-Dfile.encoding=UTF-8'
     if ($LASTEXITCODE -ne 0) { throw 'jpackage failed.' }
     foreach ($document in @('README.md', 'SECURITY.md', 'THIRD_PARTY.md')) {
         Copy-Item -LiteralPath (Join-Path $projectRoot $document) -Destination (Join-Path $destPath 'Passworder')

@@ -24,7 +24,7 @@ public final class MainFrame extends JFrame {
     private final GlobalHotkey hotkey = new GlobalHotkey();
     private final ClipboardService clipboard = new ClipboardService();
     private final JPanel root = new JPanel(new BorderLayout());
-    private final JLabel status = new JLabel(" ");
+    private final FeedbackLabel status = new FeedbackLabel();
     private VaultSession session;
     private VaultPanel vaultPanel;
     private GeneratorPanel generatorPanel;
@@ -44,7 +44,8 @@ public final class MainFrame extends JFrame {
     public MainFrame(VaultStore store, AppSettings settings, SingleInstance instance) {
         super("Passworder"); this.store = store; this.settings = settings; this.instance = instance;
         setIconImage(Glyph.appImage(64)); setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        setMinimumSize(new Dimension(1040, 680)); setSize(1280, 810); setLocationRelativeTo(null);
+        Motion.setEnabled(settings.animations());
+        setMinimumSize(new Dimension(960, 660)); setSize(1280, 820); setLocationRelativeTo(null);
         setContentPane(root); status.putClientProperty("html.disable", true);
         Toolkit.getDefaultToolkit().addAWTEventListener(activityListener, AWTEvent.KEY_EVENT_MASK | AWTEvent.MOUSE_EVENT_MASK | AWTEvent.MOUSE_MOTION_EVENT_MASK | AWTEvent.MOUSE_WHEEL_EVENT_MASK);
         addWindowListener(new WindowAdapter() {
@@ -121,53 +122,75 @@ public final class MainFrame extends JFrame {
         center.add(card); root.add(center, BorderLayout.CENTER);
         JPanel bottom = new JPanel(new BorderLayout()); bottom.setBorder(BorderFactory.createEmptyBorder(12, 24, 16, 24));
         bottom.add(Theme.label(hotkeyAvailable ? settings.hotkey() + " - показать окно" : "Горячая клавиша недоступна. Измените ее в настройках.", 12, Theme.muted, false), BorderLayout.WEST);
-        JButton toggle = Theme.button(settings.dark() ? "Светлая тема" : "Темная тема", () -> {
-            master.setText(""); confirm.setText(""); applySettings(!settings.dark(), settings.hotkey(), settings.autoLockMinutes());
-        }); bottom.add(toggle, BorderLayout.EAST); root.add(bottom, BorderLayout.SOUTH);
+        bottom.add(themeButton(), BorderLayout.EAST); root.add(bottom, BorderLayout.SOUTH);
         getRootPane().setDefaultButton(submit); root.revalidate(); root.repaint(); SwingUtilities.invokeLater(master::requestFocusInWindow);
     }
     private void buildWorkspace() {
         clearLockedFields();
-        getRootPane().setDefaultButton(null); root.removeAll();
-        JPanel sidebar = new JPanel(new BorderLayout()); sidebar.setPreferredSize(new Dimension(224, 0)); sidebar.setBackground(Theme.sidebar);
+        VaultPanel.ViewState tableState = vaultPanel == null ? null : vaultPanel.capture();
+        GeneratorPanel.State generatorState = generatorPanel != null && page.equals("generator") ? generatorPanel.capture() : null;
+        if (generatorPanel != null) generatorPanel.clear();
+        generatorPanel = null; vaultPanel = null;
+        getRootPane().setDefaultButton(null); root.removeAll(); root.setBackground(Theme.background);
+        JPanel sidebar = new JPanel(new BorderLayout()); sidebar.setPreferredSize(new Dimension(212, 0)); sidebar.setBackground(Theme.sidebar);
         sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Theme.border));
-        JPanel nav = Theme.vertical(); nav.setBackground(Theme.sidebar); nav.setBorder(BorderFactory.createEmptyBorder(32, 20, 0, 20));
-        JPanel logo = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0)); logo.setBackground(Theme.sidebar);
-        logo.add(new JLabel(new ImageIcon(Glyph.appImage(34)))); logo.add(Theme.label("Passworder", 20, Theme.text, true)); Theme.align(logo); nav.add(logo); Theme.gap(nav, 16);
-        JLabel version = Theme.label("Личное хранилище", 12, Theme.muted, false); version.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0)); Theme.align(version); nav.add(version); Theme.gap(nav, 38);
-        nav.add(navButton("Все пароли", "grid", "vault")); Theme.gap(nav, 7);
-        nav.add(navButton("Избранное", "star", "favorites")); Theme.gap(nav, 25);
-        nav.add(navButton("Генератор", "key", "generator")); Theme.gap(nav, 7);
-        nav.add(navButton("Настройки", "settings", "settings")); sidebar.add(nav, BorderLayout.NORTH);
-        JPanel foot = Theme.vertical(); foot.setBackground(Theme.sidebar); foot.setBorder(BorderFactory.createEmptyBorder(20, 20, 26, 20));
-        JLabel local = Theme.label("Данные на вашем ПК", 12, Theme.muted, false); Theme.align(local); foot.add(local); Theme.gap(foot, 18);
-        JButton lock = Theme.button("Заблокировать", this::lock); lock.setIcon(new Glyph("lock", 17, Theme.muted)); Theme.align(lock); foot.add(lock); Theme.gap(foot, 12);
-        JLabel shortcut = Theme.label(settings.hotkey() + " - показать окно", 11, Theme.muted, false); Theme.align(shortcut); foot.add(shortcut); sidebar.add(foot, BorderLayout.SOUTH);
+        JPanel nav = Theme.vertical(); nav.setBackground(Theme.sidebar); nav.setBorder(BorderFactory.createEmptyBorder(28, 16, 0, 16));
+        JPanel logo = new JPanel(new BorderLayout(10, 0)); logo.setBackground(Theme.sidebar);
+        logo.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
+        logo.add(new JLabel(new ImageIcon(Glyph.appImage(32))), BorderLayout.WEST);
+        logo.add(Theme.label("Passworder", 19, Theme.text, true), BorderLayout.CENTER);
+        logo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34)); Theme.align(logo); nav.add(logo); Theme.gap(nav, 34);
+        String[][] items = {{"Все пароли", "grid", "vault"}, {"Избранное", "star", "favorites"}, {"Генератор", "key", "generator"}, {"Настройки", "settings", "settings"}};
+        for (int i = 0; i < items.length; i++) {
+            if (i > 0) Theme.gap(nav, 8);
+            nav.add(navButton(items[i][0], items[i][1], items[i][2]));
+        }
+        sidebar.add(nav, BorderLayout.NORTH);
+        JPanel foot = Theme.vertical(); foot.setBackground(Theme.sidebar); foot.setBorder(BorderFactory.createEmptyBorder(20, 16, 22, 16));
+        JButton lock = new MotionButton("Заблокировать", MotionButton.Style.GHOST, this::lock);
+        lock.setIcon(new Glyph("lock", 18, Theme.muted)); lock.setHorizontalAlignment(SwingConstants.LEFT);
+        lock.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44)); Theme.align(lock); foot.add(lock); Theme.gap(foot, 10);
+        JLabel shortcut = Theme.label(settings.hotkey(), 12, Theme.muted, false); shortcut.setToolTipText("Показать окно");
+        shortcut.setBorder(BorderFactory.createEmptyBorder(0, 16, 0, 0)); Theme.align(shortcut); foot.add(shortcut); sidebar.add(foot, BorderLayout.SOUTH);
         root.add(sidebar, BorderLayout.WEST);
         JPanel main = new JPanel(new BorderLayout());
-        if (generatorPanel != null) generatorPanel.clear(); generatorPanel = null; vaultPanel = null;
-        switch (page) {
-            case "generator" -> { generatorPanel = new GeneratorPanel(this); main.add(generatorPanel); }
-            case "settings" -> main.add(new SettingsPanel(this));
-            default -> { vaultPanel = new VaultPanel(this, page.equals("favorites")); main.add(vaultPanel); }
-        }
-        JPanel statusBar = new JPanel(new BorderLayout()); statusBar.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.border), BorderFactory.createEmptyBorder(12, 36, 12, 36)));
-        status.setForeground(Theme.muted); status.setFont(new Font("Segoe UI", Font.PLAIN, 12)); status.setText("Хранилище открыто"); statusBar.add(status, BorderLayout.WEST);
+        JPanel heading = new JPanel(new BorderLayout(16, 0)); heading.setBorder(BorderFactory.createEmptyBorder(24, 28, 20, 28));
+        String title = switch (page) { case "favorites" -> "Избранное"; case "generator" -> "Генератор паролей"; case "settings" -> "Настройки"; default -> "Все пароли"; };
+        heading.add(Theme.label(title, 28, Theme.text, true), BorderLayout.WEST); heading.add(themeButton(), BorderLayout.EAST);
+        main.add(heading, BorderLayout.NORTH);
+        try {
+            switch (page) {
+                case "generator" -> { generatorPanel = new GeneratorPanel(this, generatorState); main.add(generatorPanel); }
+                case "settings" -> main.add(new SettingsPanel(this));
+                default -> { vaultPanel = new VaultPanel(this, page.equals("favorites")); main.add(vaultPanel); if (tableState != null) vaultPanel.restore(tableState); }
+            }
+        } finally { if (generatorState != null) generatorState.close(); }
+        JPanel statusBar = new JPanel(new BorderLayout()); statusBar.setBorder(BorderFactory.createEmptyBorder(12, 28, 16, 28));
+        status.reset(); status.setFont(new Font("Segoe UI", Font.PLAIN, 12)); statusBar.add(status, BorderLayout.CENTER);
         statusBar.add(Theme.label("Автоблокировка: " + settings.autoLockMinutes() + " мин", 12, Theme.muted, false), BorderLayout.EAST); main.add(statusBar, BorderLayout.SOUTH);
         root.add(main, BorderLayout.CENTER); root.revalidate(); root.repaint();
     }
     private JButton navButton(String name, String icon, String destination) {
-        boolean active = page.equals(destination); JButton b = Theme.button(name, () -> navigate(destination));
-        b.setIcon(new Glyph(icon, 19, active ? Theme.accent : Theme.muted)); b.setIconTextGap(13); b.setHorizontalAlignment(SwingConstants.LEFT);
-        b.setBorderPainted(false); b.setBackground(active ? Theme.selected : Theme.sidebar); b.setForeground(active ? Theme.accent : Theme.text);
-        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46)); b.setAlignmentX(Component.LEFT_ALIGNMENT); b.setName("nav." + destination); return b;
+        boolean active = page.equals(destination);
+        var b = new MotionButton(name, MotionButton.Style.NAV, () -> navigate(destination)); b.setCurrent(active);
+        b.setIcon(new Glyph(icon, 18, active ? Theme.accent : Theme.muted)); b.setIconTextGap(12); b.setHorizontalAlignment(SwingConstants.LEFT);
+        b.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44)); b.setMinimumSize(new Dimension(160, 44));
+        b.setAlignmentX(Component.LEFT_ALIGNMENT); b.setName("nav." + destination); return b;
     }
-    void navigate(String destination) { if (session == null || busy) return; page = destination; buildWorkspace(); }
+    private JButton themeButton() {
+        var button = Theme.icon(settings.dark() ? "sun" : "moon", settings.dark() ? "Включить светлую тему" : "Включить темную тему",
+                () -> applySettings(!settings.dark(), settings.hotkey(), settings.autoLockMinutes()));
+        button.setName("theme.toggle"); return button;
+    }
+    void navigate(String destination) {
+        if (session == null || busy || page.equals(destination)) return;
+        Motion.transition(root, 130, () -> { page = destination; buildWorkspace(); });
+    }
     void edit(VaultEntry entry) {
         if (session == null || busy) return;
         new EntryDialog(this, entry, candidate -> {
             if (session == null) return false;
-            try { session.put(candidate); if (vaultPanel != null) vaultPanel.refresh(); notifyStatus("Сохранено на этом компьютере"); return true; }
+            try { session.put(candidate); if (vaultPanel != null) vaultPanel.refresh(); notifyStatus("Запись сохранена"); return true; }
             catch (Exception e) { error("Не удалось сохранить запись. Проверьте свободное место и права доступа."); return false; }
         }).setVisible(true);
     }
@@ -193,6 +216,7 @@ public final class MainFrame extends JFrame {
         try { Desktop.getDesktop().browse(WebLinks.parse(url)); } catch (Exception e) { error("Не удалось открыть ссылку в браузере."); }
     }
     public void lock() {
+        Motion.stopTransitions();
         if (busy) { lockWhenReady = true; return; }
         clipboard.clear();
         for (Window window : getOwnedWindows()) window.dispose();
@@ -201,14 +225,21 @@ public final class MainFrame extends JFrame {
         showLocked();
     }
     void applySettings(boolean dark, String shortcut, int minutes) {
+        applySettings(dark, shortcut, minutes, settings.animations());
+    }
+    void applySettings(boolean dark, String shortcut, int minutes, boolean animations) {
         if (busy) return;
         try {
-            settings.set(dark, shortcut, minutes); Theme.apply(dark); SwingUtilities.updateComponentTreeUI(this);
-            boolean registered = registerHotkey();
+            boolean themeChanged = settings.dark() != dark, shortcutChanged = !settings.hotkey().equals(shortcut);
+            settings.set(dark, shortcut, minutes, animations); Motion.setEnabled(animations);
+            boolean registered = !shortcutChanged || registerHotkey();
             if (tray != null) tray.setToolTip("Passworder - " + settings.hotkey());
-            if (session == null) showLocked(); else buildWorkspace();
+            Motion.transition(root, themeChanged ? 220 : 120, () -> {
+                if (themeChanged) { Theme.apply(dark); SwingUtilities.updateComponentTreeUI(this); }
+                if (session == null) showLocked(); else buildWorkspace();
+            });
             if (!registered) error("Это сочетание клавиш занято. Выберите другое в настройках.");
-            else if (session != null) notifyStatus("Настройки сохранены");
+            else if (session != null) notifyStatus(themeChanged ? "Тема изменена" : "Настройки сохранены");
         } catch (IOException e) { error("Не удалось сохранить настройки."); }
     }
     private boolean registerHotkey() { hotkeyAvailable = hotkey.register(settings.hotkey(), this::summon); return hotkeyAvailable; }
@@ -265,8 +296,8 @@ public final class MainFrame extends JFrame {
         }.execute();
     }
     private void notifyStatus(String message) {
-        status.setText(message); status.setForeground(Theme.accent); if (statusTimer != null) statusTimer.stop();
-        statusTimer = new javax.swing.Timer(5000, e -> { status.setText("Сохранено локально"); status.setForeground(Theme.muted); }); statusTimer.setRepeats(false); statusTimer.start();
+        status.showMessage(message); if (statusTimer != null) statusTimer.stop();
+        statusTimer = new javax.swing.Timer(4500, e -> status.clearMessage()); statusTimer.setRepeats(false); statusTimer.start();
     }
     private void error(String message) { JOptionPane.showMessageDialog(this, message, "Passworder", JOptionPane.WARNING_MESSAGE); }
 }
