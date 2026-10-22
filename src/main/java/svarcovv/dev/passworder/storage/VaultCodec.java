@@ -100,6 +100,18 @@ final class VaultCodec {
         }
     }
     private static final class WipeableBuffer extends ByteArrayOutputStream {
+        private void ensureCapacity(int extra) {
+            int required = Math.addExact(count, extra);
+            if (required > MAX_FILE_SIZE) throw new IllegalArgumentException("Хранилище превысило 32 МБ.");
+            if (required <= buf.length) return;
+            byte[] old = buf; buf = Arrays.copyOf(old, Math.min(MAX_FILE_SIZE, Math.max(required, old.length * 2)));
+            Arrays.fill(old, (byte) 0);
+        }
+        @Override public synchronized void write(int value) { ensureCapacity(1); buf[count++] = (byte) value; }
+        @Override public synchronized void write(byte[] bytes, int offset, int length) {
+            java.util.Objects.checkFromIndexSize(offset, length, bytes.length); ensureCapacity(length);
+            System.arraycopy(bytes, offset, buf, count, length); count += length;
+        }
         @Override public void close() { Arrays.fill(buf, (byte) 0); reset(); }
     }
 }
