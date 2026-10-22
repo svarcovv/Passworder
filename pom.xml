@@ -6,7 +6,7 @@
 
     <groupId>svarcovv.dev</groupId>
     <artifactId>Passworder</artifactId>
-    <version>0.2.2</version>
+    <version>0.2.3</version>
     <name>Passworder</name>
     <description>Локальный менеджер паролей</description>
 

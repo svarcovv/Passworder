@@ -62,7 +62,9 @@ public final class MainFrame extends JFrame {
         bind("search", KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK), () -> { if (session != null && !busy) { if (!page.equals("vault") && !page.equals("favorites")) navigate("vault"); vaultPanel.focusSearch(); } });
         bind("lock", KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::lock);
         setupTray(); registerHotkey(); showLocked();
-        heartbeat = new javax.swing.Timer(1000, e -> {
+        heartbeat = new javax.swing.Timer(250, e -> {
+            if (instance != null && instance.replacementRequested() && !busy
+                    && Arrays.stream(getOwnedWindows()).noneMatch(window -> window instanceof Dialog && window.isShowing())) { exit(); return; }
             if (instance != null && instance.activationRequested()) summon();
             if (session != null && System.nanoTime() - lastActivity > settings.autoLockMinutes() * 60_000_000_000L) lock();
         }); heartbeat.start();
