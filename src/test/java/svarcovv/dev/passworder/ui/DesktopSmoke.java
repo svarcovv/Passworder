@@ -21,7 +21,7 @@ public final class DesktopSmoke {
         try {
             output = Path.of(args[0]); Files.createDirectories(output);
             Path data = Files.createTempDirectory("passworder-ui-test-"); LocalFiles.privateDirectory(data);
-            var preferences = new AppSettings(data); preferences.set(true, "Ctrl+Alt+Space", 5);
+            var preferences = new AppSettings(data); preferences.set(true, "Ctrl+Shift+P", 5);
             edt(() -> { com.formdev.flatlaf.FlatLaf.setUseNativeWindowDecorations(true); Theme.apply(true); frame = new MainFrame(new VaultStore(data.resolve("vault.pwr")), preferences, null); frame.setVisible(true); });
             edt(() -> {
                 field("unlock.master").setText("Only for testing 123!"); field("unlock.confirm").setText("Only for testing 123!"); button("unlock.submit").doClick();
@@ -66,6 +66,11 @@ public final class DesktopSmoke {
                 java.util.Arrays.fill(before, '\0'); java.util.Arrays.fill(after, '\0');
             });
             screenshot("passworder-generator.png");
+            edt(() -> {
+                var field = (JPasswordField) find("generator.output");
+                check(Math.abs(field.getY() + field.getHeight() / 2.0 - field.getParent().getHeight() / 2.0) <= 1, "generated password is vertically centered");
+                check(field.getHeight() >= field.getFontMetrics(field.getFont()).getHeight(), "generated password fits font metrics");
+            });
             edt(() -> button("nav.settings").doClick()); screenshot("passworder-settings.png");
             edt(() -> button("nav.vault").doClick());
             // Windows uses delayed native clipboard formats. Check the real timeout too.
@@ -92,6 +97,13 @@ public final class DesktopSmoke {
             await(() -> findOptionPane() == null, "delete completed");
             edt(() -> check(((JTable) find("vault.table")).getRowCount() == 4, "delete row"));
             for (int i = 0; i < 12; i++) add("Сервис " + (i + 1), "demo@example.test", "", false);
+            var paintTimes = new java.util.ArrayList<Double>();
+            edt(() -> RepaintManager.setCurrentManager(new RepaintManager() {
+                @Override public void paintDirtyRegions() {
+                    long start = System.nanoTime(); super.paintDirtyRegions();
+                    paintTimes.add((System.nanoTime() - start) / 1_000_000.0);
+                }
+            }));
             edt(() -> {
                 JScrollPane scroll = (JScrollPane) find("vault.scroll");
                 scroll.dispatchEvent(new MouseWheelEvent(scroll, MouseWheelEvent.MOUSE_WHEEL, System.currentTimeMillis(), 0, 50, 50, 0, false, MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 4));
@@ -104,8 +116,18 @@ public final class DesktopSmoke {
             Thread.sleep(300);
             edt(() -> check(((JScrollPane) find("vault.scroll")).getVerticalScrollBar().getValue() > 0, "theme preserves scroll"));
             screenshot("passworder-scrolled.png");
+            edt(() -> {
+                var samples = paintTimes.stream().sorted().toList();
+                check(samples.size() >= 10, "animation has intermediate frames");
+                System.out.printf(java.util.Locale.ROOT, "Animation paints: %d, p95 %.2f ms, max %.2f ms%n",
+                        samples.size(), samples.get((int) ((samples.size() - 1) * .95)), samples.getLast());
+                RepaintManager.setCurrentManager(new RepaintManager());
+                button("theme.toggle").doClick(0); frame.lock();
+                check(frame.getLayeredPane().getComponentsInLayer(JLayeredPane.DRAG_LAYER).length == 0, "lock removes theme snapshots immediately");
+            });
             edt(() -> { frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING)); check(!frame.isVisible(), "hide in tray"); });
-            Robot robot = new Robot(); robot.keyPress(KeyEvent.VK_CONTROL); robot.keyPress(KeyEvent.VK_ALT); robot.keyPress(KeyEvent.VK_SPACE); robot.keyRelease(KeyEvent.VK_SPACE); robot.keyRelease(KeyEvent.VK_ALT); robot.keyRelease(KeyEvent.VK_CONTROL);
+            Robot robot = new Robot(); robot.setAutoDelay(60); robot.waitForIdle();
+            robot.keyPress(KeyEvent.VK_CONTROL); robot.keyPress(KeyEvent.VK_SHIFT); robot.keyPress(KeyEvent.VK_P); robot.keyRelease(KeyEvent.VK_P); robot.keyRelease(KeyEvent.VK_SHIFT); robot.keyRelease(KeyEvent.VK_CONTROL);
             await(() -> frame.isVisible() && find("unlock.master") != null, "global hotkey and lock on close");
             System.out.println("Desktop smoke passed: create, add, search, favorites, copy, both themes, lock, wrong master, reopen, edit, delete, tray, global shortcut.");
             edt(() -> { frame.lock(); frame.dispose(); });
@@ -126,7 +148,7 @@ public final class DesktopSmoke {
     }
     private static void clickFavorite(Container c) { for (Component child : c.getComponents()) { if (child instanceof JCheckBox box) box.setSelected(true); if (child instanceof Container nested) clickFavorite(nested); } }
     private static void screenshot(String name) throws Exception {
-        Thread.sleep(300);
+        Thread.sleep(500);
         edt(() -> {
             Window target = frame;
             if (name.equals("passworder-entry.png")) for (Window window : Window.getWindows()) if (window.isShowing() && window instanceof JDialog) target = window;

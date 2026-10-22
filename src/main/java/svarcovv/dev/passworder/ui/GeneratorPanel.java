@@ -2,6 +2,7 @@ package svarcovv.dev.passworder.ui;
 
 import svarcovv.dev.passworder.security.PasswordGenerator;
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicPasswordFieldUI;
 import java.awt.*;
 import java.util.Arrays;
 
@@ -17,8 +18,16 @@ final class GeneratorPanel extends JPanel {
         super(new BorderLayout()); setBorder(BorderFactory.createEmptyBorder(0, 28, 4, 28));
         JPanel body = Theme.vertical();
         output.setName("generator.output"); output.setEchoChar((char) 0); output.setEditable(false); output.setFont(new Font("Consolas", Font.PLAIN, 20));
-        Theme.field(body, "Ваш новый пароль", output);
-        output.setPreferredSize(new Dimension(600, 60)); output.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+        output.setUI(new BasicPasswordFieldUI());
+        output.setBorder(BorderFactory.createEmptyBorder()); output.setMargin(new Insets(0, 0, 0, 0));
+        output.setBackground(Theme.surface); output.setForeground(Theme.text); output.setCaretColor(Theme.surface);
+        JPanel passwordBox = new JPanel(new GridBagLayout()); passwordBox.setBackground(Theme.surface);
+        passwordBox.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Theme.border),
+                BorderFactory.createEmptyBorder(0, 14, 0, 14)));
+        GridBagConstraints fieldLayout = new GridBagConstraints(); fieldLayout.weightx = 1; fieldLayout.fill = GridBagConstraints.HORIZONTAL;
+        passwordBox.add(output, fieldLayout);
+        Theme.field(body, "Ваш новый пароль", passwordBox);
+        passwordBox.setPreferredSize(new Dimension(600, 60)); passwordBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
         length.setName("generator.length"); length.setMajorTickSpacing(13); length.setPaintTicks(true);
         if (initial != null) { length.setValue(initial.length()); digits.setSelected(initial.digits()); symbols.setSelected(initial.symbols()); }
         JLabel lengthLabel = Theme.label("Длина: 24 символа", 14, Theme.text, true); Theme.align(lengthLabel); body.add(lengthLabel); Theme.gap(body, 14);

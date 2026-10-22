@@ -16,14 +16,16 @@ final class VaultPanel extends JPanel {
     private final JTable table;
     private final SmoothScrollPane scroll;
     private int hoveredRow = -1, hoveredAction = -1;
-    private final Motion.Value actionHover = new Motion.Value(0, value -> { if (isShowing()) repaint(); });
+    private final Motion.Value actionHover = new Motion.Value(0, value -> repaintActions());
+    private void repaintActions() { if (table != null && hoveredRow >= 0) table.repaint(table.getCellRect(hoveredRow, 4, true)); }
+    private void repaintRow(int row) { if (row >= 0) table.repaint(0, row * table.getRowHeight(), table.getWidth(), table.getRowHeight()); }
     record ViewState(boolean favorites, String query, UUID selection, int scroll) {}
     ViewState capture() { return new ViewState(favorites, search.getText(), selected() == null ? null : selected().id(), scroll.getVerticalScrollBar().getValue()); }
     void restore(ViewState state) {
         if (favorites != state.favorites()) return;
         search.setText(state.query()); select(state.selection());
-        SwingUtilities.invokeLater(() -> { if (isDisplayable()) scroll.getVerticalScrollBar().setValue(state.scroll()); });
     }
+    void restoreScroll(ViewState state) { if (favorites == state.favorites()) scroll.getVerticalScrollBar().setValue(state.scroll()); }
     private void select(UUID id) {
         if (id == null) return;
         for (int i = 0; i < visible.size(); i++) if (visible.get(i).id().equals(id)) { table.setRowSelectionInterval(i, i); return; }
@@ -37,8 +39,8 @@ final class VaultPanel extends JPanel {
     private void updateHover(MouseEvent e) {
         int row = table.rowAtPoint(e.getPoint()), action = actionAt(e.getPoint());
         if (row != hoveredRow || action != hoveredAction) {
-            hoveredRow = row; hoveredAction = action;
-            actionHover.to(.25, 0, false); actionHover.to(action < 0 ? 0 : 1, 130, false); table.repaint();
+            int previous = hoveredRow; hoveredRow = row; hoveredAction = action;
+            actionHover.to(0, 0, false); actionHover.to(action < 0 ? 0 : 1, 130, false); repaintRow(previous); repaintRow(row);
         }
         table.setCursor(Cursor.getPredefinedCursor(row >= 0 && table.columnAtPoint(e.getPoint()) > 0 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
     }
@@ -95,13 +97,11 @@ final class VaultPanel extends JPanel {
             table.getColumnModel().getColumn(i).setMinWidth(minimums[i]);
         }
         table.getColumnModel().getColumn(4).setMaxWidth(108);
+        JLabel header = Theme.label("", 12, Theme.muted, false); header.setOpaque(true); header.setBackground(Theme.surface);
         table.getTableHeader().setDefaultRenderer((t, value, selected, focus, row, col) -> {
-            JLabel label = Theme.label(value.toString(), 12, Theme.muted, false); label.setOpaque(true); label.setBackground(Theme.surface);
-            label.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.border));
-            JPanel header = new JPanel(new BorderLayout()); header.setBackground(Theme.surface);
+            header.setText(value.toString()); header.setHorizontalAlignment(col == 4 ? SwingConstants.CENTER : SwingConstants.LEFT);
             header.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.border),
-                    BorderFactory.createEmptyBorder(0, col == 4 ? 0 : 16, 0, 8)));
-            label.setBorder(null); if (col == 4) label.setHorizontalAlignment(SwingConstants.CENTER); header.add(label); return header;
+                    BorderFactory.createEmptyBorder(0, col == 4 ? 0 : 16, 0, 8))); return header;
         });
         scroll = new SmoothScrollPane(table); scroll.setName("vault.scroll");
         scroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, Theme.border));
@@ -110,7 +110,7 @@ final class VaultPanel extends JPanel {
             @Override public void mouseMoved(MouseEvent e) { updateHover(e); }
         });
         table.addMouseListener(new MouseAdapter() {
-            @Override public void mouseExited(MouseEvent e) { hoveredRow = hoveredAction = -1; actionHover.to(0, 120, false); table.repaint(); }
+            @Override public void mouseExited(MouseEvent e) { int previous = hoveredRow; hoveredRow = hoveredAction = -1; actionHover.stop(); repaintRow(previous); }
         });
         JPanel empty = new JPanel(new GridBagLayout()); empty.setBackground(Theme.surface); empty.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, Theme.border));
         JPanel emptyContent = Theme.vertical(); emptyContent.setBackground(Theme.surface);
@@ -175,36 +175,33 @@ final class VaultPanel extends JPanel {
         return selected ? Theme.selected : row == hoveredRow ? Theme.mix(Theme.surface, Theme.text, .018) : Theme.surface;
     }
     private final class CellRenderer extends DefaultTableCellRenderer {
+        private final ActionsCell actions = new ActionsCell();
+        private final Font normal = new Font("Segoe UI", Font.PLAIN, 14), password = new Font("Consolas", Font.PLAIN, 14);
+        private final Icon favorite = new Glyph("star", 12, Theme.muted);
         @Override public Component getTableCellRendererComponent(JTable t, Object value, boolean selected, boolean focus, int row, int col) {
             Color bg = rowColor(selected, row);
-            if (col == 0) {
-                var entry = visible.get(row);
-                JPanel p = new JPanel(new BorderLayout(12, 0)); p.setBackground(bg); p.setBorder(BorderFactory.createEmptyBorder(0, 16, 0, 8));
-                JLabel name = Theme.label(entry.title(), 14, Theme.text, false);
-                if (entry.favorite()) { name.setIcon(new Glyph("star", 12, Theme.muted)); name.setIconTextGap(8); name.setHorizontalTextPosition(SwingConstants.LEFT); }
-                p.add(name, BorderLayout.CENTER); return p;
-            }
-            if (col == 4) return new ActionsCell(bg, row);
+            if (col == 4) { actions.background = bg; actions.row = row; return actions; }
             super.getTableCellRendererComponent(t, value, selected, focus, row, col);
+            setIcon(col == 0 && visible.get(row).favorite() ? favorite : null); setIconTextGap(8); setHorizontalTextPosition(SwingConstants.LEFT);
             putClientProperty("html.disable", true); setBackground(bg);
             setForeground(col == 3 ? visible.get(row).url().isEmpty() ? Theme.muted : Theme.accent : Theme.text);
-            setFont(new Font(col == 2 ? "Consolas" : "Segoe UI", Font.PLAIN, 14)); setBorder(BorderFactory.createEmptyBorder(0, 16, 0, 8));
+            setFont(col == 2 ? password : normal); setBorder(BorderFactory.createEmptyBorder(0, 16, 0, 8));
             return this;
         }
     }
     private final class ActionsCell extends JComponent {
-        private final Color background;
-        private final int row;
-        ActionsCell(Color background, int row) { this.background = background; this.row = row; }
+        private Color background;
+        private int row;
+        private final Glyph[] normal = {new Glyph("copy", 17, Theme.muted), new Glyph("edit", 17, Theme.muted), new Glyph("more", 17, Theme.muted)};
+        private final Glyph[] active = {new Glyph("copy", 17, Theme.text), new Glyph("edit", 17, Theme.text), new Glyph("more", 17, Theme.text)};
         @Override protected void paintComponent(Graphics graphics) {
             Graphics2D g = (Graphics2D) graphics.create(); g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setColor(background); g.fillRect(0, 0, getWidth(), getHeight());
             int start = (getWidth() - 108) / 2;
-            String[] icons = {"copy", "edit", "more"};
             for (int i = 0; i < 3; i++) {
                 boolean hovered = row == hoveredRow && i == hoveredAction;
                 if (hovered) { g.setColor(Theme.mix(background, Theme.text, .07 * actionHover.get())); g.fillRoundRect(start + i * 36 + 3, getHeight() / 2 - 15, 30, 30, 8, 8); }
-                new Glyph(icons[i], 17, hovered ? Theme.text : Theme.muted).paintIcon(this, g, start + i * 36 + 9, getHeight() / 2 - 8);
+                (hovered ? active[i] : normal[i]).paintIcon(this, g, start + i * 36 + 9, getHeight() / 2 - 8);
             }
             g.dispose();
         }

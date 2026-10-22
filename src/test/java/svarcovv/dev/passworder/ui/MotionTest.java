@@ -9,6 +9,37 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MotionTest {
+    @Test void buttonGlyphsKeepIdenticalPixelsDuringPressAndHover() throws Exception {
+        edt(() -> {
+            Theme.apply(true); Motion.setEnabled(false);
+            for (double scale : new double[]{1, 1.25, 1.5, 2}) {
+                var button = new MotionButton("Сохранить", MotionButton.Style.PRIMARY, () -> {});
+                button.setForeground(Color.MAGENTA); button.setSize(220, 44);
+                var rest = textCoverage(button, scale);
+                assertTrue(java.util.Arrays.stream(rest).sum() > 40);
+                button.getModel().setRollover(true); button.getModel().setArmed(true); button.getModel().setPressed(true);
+                assertArrayEquals(rest, textCoverage(button, scale), .015, "press changed glyphs at scale " + scale);
+                button.getModel().setPressed(false); button.getModel().setRollover(false);
+                assertArrayEquals(rest, textCoverage(button, scale), .015, "release changed glyphs at scale " + scale);
+                button.removeNotify();
+            }
+            Motion.setEnabled(true);
+        });
+    }
+    private static double[] textCoverage(JButton button, double scale) {
+        var ink = render(button, scale); String text = button.getText(); button.setText("");
+        var backdrop = render(button, scale); button.setText(text);
+        var coverage = new double[ink.getWidth() * ink.getHeight()];
+        for (int y = 0; y < ink.getHeight(); y++) for (int x = 0; x < ink.getWidth(); x++) {
+            int base = (backdrop.getRGB(x, y) >> 16) & 255, painted = (ink.getRGB(x, y) >> 16) & 255;
+            coverage[y * ink.getWidth() + x] = Math.max(0, (painted - base) / (255.0 - base));
+        }
+        return coverage;
+    }
+    private static BufferedImage render(JButton button, double scale) {
+        var image = new BufferedImage((int) (button.getWidth() * scale), (int) (button.getHeight() * scale), BufferedImage.TYPE_INT_RGB);
+        var g = image.createGraphics(); g.scale(scale, scale); button.paint(g); g.dispose(); return image;
+    }
     @Test void hoverAndPressKeepTheSameHitAreaAndLayout() throws Exception {
         var reference = new AtomicReference<MotionButton>();
         edt(() -> {
@@ -51,6 +82,16 @@ class MotionTest {
         edt(() -> { var scroll = reference.get(); assertTrue(scroll.getVerticalScrollBar().getValue() > 0); scroll.getVerticalScrollBar().setValue(500); wheel(scroll, -1); });
         Thread.sleep(450);
         edt(() -> { int value = reference.get().getVerticalScrollBar().getValue(); assertTrue(value < 500 && value > 300); reference.get().removeNotify(); });
+    }
+    @Test void preciseWheelRetainsSubpixelMovement() throws Exception {
+        edt(() -> {
+            Theme.apply(true); Motion.setEnabled(true); JPanel view = new JPanel(); view.setPreferredSize(new Dimension(400, 2400));
+            var scroll = new SmoothScrollPane(view); scroll.setSize(500, 300); scroll.doLayout();
+            scroll.getVerticalScrollBar().setValues(0, 300, 0, 2400);
+            for (int i = 0; i < 10; i++) scroll.dispatchEvent(new MouseWheelEvent(scroll, MouseWheelEvent.MOUSE_WHEEL,
+                    System.currentTimeMillis(), 0, 30, 30, 30, 30, 0, false, MouseWheelEvent.WHEEL_UNIT_SCROLL, 3, 0, .005));
+            assertEquals(4, scroll.getVerticalScrollBar().getValue()); scroll.removeNotify();
+        });
     }
     @Test void svgIconsStayInsideTheirDeclaredSizeAtDesktopScaling() throws Exception {
         edt(() -> {
