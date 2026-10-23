@@ -6,7 +6,6 @@ import svarcovv.dev.passworder.storage.*;
 import javax.swing.*;
 import java.nio.file.*;
 
-/** External-process fixture for verifying that a handover preserves an open editor. */
 public final class UpgradeFixture {
     public static void main(String[] args) throws Exception {
         Path data = Path.of(args[0]), ready = Path.of(args[1]), release = Path.of(args[2]);
